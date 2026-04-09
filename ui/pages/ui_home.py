@@ -4,11 +4,8 @@ from PySide6.QtCore import Qt
 import os
 from PySide6.QtGui import QFont, QPixmap
 from core.translator import translator
+from core.utils import get_resource_path
 
-def _resource_path(relative_path):
-    """Get absolute path to resource from project root"""
-    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    return os.path.join(base_path, relative_path)
 
 class HomePage(QWidget):
     def __init__(self, parent=None):
@@ -50,7 +47,7 @@ class HomePage(QWidget):
         logo_layout.setContentsMargins(0, 0, 0, 0)
         
         logo_icon = QLabel()
-        logo_path = _resource_path("assets/images/logo.png")
+        logo_path = get_resource_path("assets/images/logo.png")
         pixmap = QPixmap(logo_path)
         if not pixmap.isNull():
             pixmap = pixmap.scaled(140, 140, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)

@@ -11,12 +11,9 @@ from ui.pages.ui_decripto import DecriptoPage
 from ui.pages.ui_home import HomePage
 from ui.pages.ui_settings import SettingsPage
 from core.translator import translator
+from core.utils import get_resource_path
 
 
-def resource_path(relative_path):
-    """Get absolute path to resource, works for dev and for PyInstaller"""
-    base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
 
 
 class UI_MainWindow:
@@ -69,7 +66,7 @@ class UI_MainWindow:
         
         # Remove title bar
         parent.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        parent.setWindowIcon(QIcon(resource_path("assets/images/logo.png")))
+        parent.setWindowIcon(QIcon(get_resource_path("assets/images/logo.png")))
         
         # Create parent widget
         self.central_frame = QFrame()
@@ -103,25 +100,25 @@ class UI_MainWindow:
         icon_size = QPixmap(24, 24).scaledToHeight(24, Qt.TransformationMode.SmoothTransformation).size()
         
         self.toggle_btn = QPushButton(" Menu")
-        self.toggle_btn.setIcon(QIcon(resource_path("assets/icons/menu.svg")))
+        self.toggle_btn.setIcon(QIcon(get_resource_path("assets/icons/menu.svg")))
         self.toggle_btn.setIconSize(icon_size)
         self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.toggle_btn.setStyleSheet(self._btn_default_style)
         
         self.btn_home = QPushButton(" Home")
-        self.btn_home.setIcon(QIcon(resource_path("assets/icons/home.svg")))
+        self.btn_home.setIcon(QIcon(get_resource_path("assets/icons/home.svg")))
         self.btn_home.setIconSize(icon_size)
         self.btn_home.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_home.setStyleSheet(self._btn_active_style)
         
         self.btn_cripto = QPushButton(" Criptografar")
-        self.btn_cripto.setIcon(QIcon(resource_path("assets/icons/lock.svg")))
+        self.btn_cripto.setIcon(QIcon(get_resource_path("assets/icons/lock.svg")))
         self.btn_cripto.setIconSize(icon_size)
         self.btn_cripto.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cripto.setStyleSheet(self._btn_default_style)
         
         self.btn_decripto = QPushButton(" Descriptografar")
-        self.btn_decripto.setIcon(QIcon(resource_path("assets/icons/unlock.svg")))
+        self.btn_decripto.setIcon(QIcon(get_resource_path("assets/icons/unlock.svg")))
         self.btn_decripto.setIconSize(icon_size)
         self.btn_decripto.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_decripto.setStyleSheet(self._btn_default_style)
@@ -149,7 +146,7 @@ class UI_MainWindow:
         
         # Settings button
         self.btn_settings = QPushButton(translator.get("menu_settings"))
-        self.btn_settings.setIcon(QIcon(resource_path("assets/icons/settings.svg")))
+        self.btn_settings.setIcon(QIcon(get_resource_path("assets/icons/settings.svg")))
         self.btn_settings.setIconSize(icon_size)
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_settings.setStyleSheet(self._btn_default_style)
@@ -185,7 +182,7 @@ class UI_MainWindow:
         # App icon
         app_icon_size = QPixmap(20, 20).scaledToHeight(20, Qt.TransformationMode.SmoothTransformation).size()
         self.lbl_icon = QLabel()
-        self.lbl_icon.setPixmap(QIcon(resource_path("assets/images/logo.png")).pixmap(app_icon_size))
+        self.lbl_icon.setPixmap(QIcon(get_resource_path("assets/images/logo.png")).pixmap(app_icon_size))
         self.lbl_icon.setMaximumWidth(30)
         
         self.lbl_title = QLabel("CryptoCational - Home")
@@ -221,7 +218,7 @@ class UI_MainWindow:
         
         # Control buttons
         self.btn_minimize = QPushButton()
-        self.btn_minimize.setIcon(QIcon(resource_path("assets/icons/minimize.svg")))
+        self.btn_minimize.setIcon(QIcon(get_resource_path("assets/icons/minimize.svg")))
         self.btn_minimize.setIconSize(control_icon_size)
         self.btn_minimize.setFixedSize(30, 30)
         self.btn_minimize.setStyleSheet(top_button_style)
@@ -229,7 +226,7 @@ class UI_MainWindow:
         self.btn_minimize.clicked.connect(parent.showMinimized)
         
         self.btn_maximize = QPushButton()
-        self.btn_maximize.setIcon(QIcon(resource_path("assets/icons/maximize.svg")))
+        self.btn_maximize.setIcon(QIcon(get_resource_path("assets/icons/maximize.svg")))
         self.btn_maximize.setIconSize(control_icon_size)
         self.btn_maximize.setFixedSize(30, 30)
         self.btn_maximize.setStyleSheet(top_button_style)
@@ -237,7 +234,7 @@ class UI_MainWindow:
         self.btn_maximize.clicked.connect(self.toggle_maximize_restore)
         
         self.btn_close = QPushButton()
-        self.btn_close.setIcon(QIcon(resource_path("assets/icons/close.svg")))
+        self.btn_close.setIcon(QIcon(get_resource_path("assets/icons/close.svg")))
         self.btn_close.setIconSize(control_icon_size)
         self.btn_close.setFixedSize(30, 30)
         self.btn_close.setStyleSheet(close_button_style)
@@ -319,10 +316,10 @@ class UI_MainWindow:
         icon_size = QPixmap(16, 16).scaledToHeight(16, Qt.TransformationMode.SmoothTransformation).size()
         if parent.isMaximized():
             parent.showNormal()
-            self.btn_maximize.setIcon(QIcon(resource_path("assets/icons/maximize.svg")))
+            self.btn_maximize.setIcon(QIcon(get_resource_path("assets/icons/maximize.svg")))
         else:
             parent.showMaximized()
-            self.btn_maximize.setIcon(QIcon(resource_path("assets/icons/restore.svg")))
+            self.btn_maximize.setIcon(QIcon(get_resource_path("assets/icons/restore.svg")))
         self.btn_maximize.setIconSize(icon_size)
 
 

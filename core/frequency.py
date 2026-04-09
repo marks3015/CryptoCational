@@ -9,6 +9,7 @@ import json
 import os
 from typing import Dict, Optional, List, Any, cast
 from collections import Counter
+from .utils import get_resource_path
 
 
 # Cache for loaded frequencies
@@ -22,10 +23,7 @@ def get_data_path() -> str:
     Returns:
         Absolute path to letter_frequencies.json
     """
-    # Assumes the file is in data/letter_frequencies.json
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    return os.path.join(project_root, 'data', 'letter_frequencies.json')
+    return get_resource_path('data/letter_frequencies.json')
 
 
 def load_frequencies() -> Dict[str, Any]:

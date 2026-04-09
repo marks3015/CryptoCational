@@ -1,11 +1,28 @@
-"""
-Utility module for the project.
-
-Contains auxiliary functions used in different parts of the application.
-"""
-
+import os
+import sys
 import re
 from typing import List
+
+
+def get_resource_path(relative_path: str) -> str:
+    """
+    Get the absolute path to a resource, works for dev and for PyInstaller.
+    
+    Args:
+        relative_path: The relative path to the resource from the project root.
+        
+    Returns:
+        The absolute path to the resource.
+    """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not running in PyInstaller, use the project root
+        # This assumes utils.py is in core/
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    return os.path.abspath(os.path.join(base_path, relative_path))
 
 
 def chunk_text(text: str, chunk_size: int = 5) -> str:
