@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QFrame, QHBoxLayout, QPushButton,
     QLineEdit, QTextEdit, QComboBox, QSpinBox, QSlider, QGroupBox,
-    QApplication, QSizePolicy, QSplitter,
+    QApplication, QSizePolicy, QSplitter, QStackedWidget, QGridLayout,
     QInputDialog, QListView
 )
 
@@ -21,6 +21,8 @@ from core.frequency import calculate_frequencies, get_language_frequencies
 from core.attack import estimate_key_length, chi_squared_score
 from core.utils import split_text_into_columns, estimate_ic
 from core.translator import translator
+from core.aes import normalize_key
+from core.modes import aes_ecb_decrypt, aes_ctr_decrypt
 
 
 # Standardized styles
@@ -132,6 +134,19 @@ QPushButton {
 QPushButton:hover { background-color: rgba(139, 92, 246, 0.1); }
 """
 
+BUTTON_DANGER = """
+QPushButton {
+    font-family: 'Roboto Mono', monospace;
+    background-color: transparent;
+    color: #DC2626;
+    border: 1.5px solid #EF4444;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 13px;
+}
+QPushButton:hover { background-color: rgba(239, 68, 68, 0.1); }
+"""
 
 class CardWidget(QFrame):
     """Standardized card widget with title and content"""
@@ -424,6 +439,92 @@ class DecriptoPage(QWidget):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(12)
 
+        # Internal stack for navigation: Home -> Sub-pages
+        self.decripto_stack = QStackedWidget()
+
+        # Page 0: Home (selection)
+        self.home_widget = QWidget()
+        self._setup_home_page()
+        self.decripto_stack.addWidget(self.home_widget)
+
+        # Page 1: Vigenère Frequency Analysis
+        self.vigenere_widget = QWidget()
+        self._setup_vigenere_page()
+        self.decripto_stack.addWidget(self.vigenere_widget)
+
+        # Page 2: AES Decryption
+        self.aes_widget = QWidget()
+        self._setup_aes_page()
+        self.decripto_stack.addWidget(self.aes_widget)
+
+        main_layout.addWidget(self.decripto_stack)
+
+    def _setup_home_page(self):
+        layout = QVBoxLayout(self.home_widget)
+        layout.setContentsMargins(30, 0, 30, 0)
+        layout.setSpacing(20)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Top stretch to push content to center vertically
+        layout.addStretch(1)
+
+        # Title
+        self.home_title = QLabel(translator.get("decripto_home_title", "Decifração"))
+        self.home_title.setStyleSheet("font-family: 'Roboto Mono', monospace; font-size: 32px; font-weight: bold; color: #333333;")
+        self.home_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.home_title)
+
+        # Subtitle
+        self.home_subtitle = QLabel(translator.get("decripto_home_subtitle", "Selecione um método de decifração"))
+        self.home_subtitle.setStyleSheet("font-family: 'Roboto Mono', monospace; font-size: 14px; color: #6B7280;")
+        self.home_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.home_subtitle)
+
+        layout.addSpacing(40)
+
+        # Buttons grid
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(30)
+        buttons_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Button 1: Vigenère
+        self.btn_vigenere = QPushButton(translator.get("decripto_tab_vigenere", "Análise Manual de Frequência"))
+        self.btn_vigenere.setMinimumHeight(120)
+        self.btn_vigenere.setMinimumWidth(280)
+        self.btn_vigenere.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_vigenere.setStyleSheet(BUTTON_PRIMARY + """
+            QPushButton {
+                font-size: 15px;
+                border-width: 2px;
+            }
+        """)
+        self.btn_vigenere.clicked.connect(lambda: self.decripto_stack.setCurrentIndex(1))
+        buttons_layout.addWidget(self.btn_vigenere)
+
+        # Button 2: AES
+        self.btn_aes_decrypt = QPushButton(translator.get("decripto_tab_aes", "Decifração AES"))
+        self.btn_aes_decrypt.setMinimumHeight(120)
+        self.btn_aes_decrypt.setMinimumWidth(280)
+        self.btn_aes_decrypt.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_aes_decrypt.setStyleSheet(BUTTON_DANGER + """
+            QPushButton {
+                font-size: 15px;
+                border-width: 2px;
+            }
+        """)
+        self.btn_aes_decrypt.clicked.connect(lambda: self.decripto_stack.setCurrentIndex(2))
+        buttons_layout.addWidget(self.btn_aes_decrypt)
+
+        layout.addLayout(buttons_layout)
+
+        # Bottom stretch to keep content centered
+        layout.addStretch(1)
+
+    def _setup_vigenere_page(self):
+        layout = QVBoxLayout(self.vigenere_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
         # Main Splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
@@ -444,7 +545,148 @@ class DecriptoPage(QWidget):
         self.splitter.setStretchFactor(1, 3)
         self.splitter.setStretchFactor(2, 1)
         self.splitter.setSizes([220, 640, 220])
-        main_layout.addWidget(self.splitter, 1)
+        layout.addWidget(self.splitter, 1)
+
+    def _setup_aes_page(self):
+        layout = QVBoxLayout(self.aes_widget)
+        layout.setContentsMargins(20, 10, 20, 20)
+        layout.setSpacing(15)
+
+        # Grid
+        grid = QGridLayout()
+        grid.setSpacing(20)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnMinimumWidth(0, 340)
+
+        # Config Card
+        self.aes_config_card = CardWidget(translator.get("config_label", "Configurações"))
+
+        self.aes_mode_label_d = QLabel(translator.get("aes_mode_label"))
+        self.aes_mode_label_d.setStyleSheet("font-family: 'Roboto Mono', monospace; color: #4B5563; font-size: 13px; background-color: transparent;")
+        self.aes_config_card.main_layout.addWidget(self.aes_mode_label_d)
+
+        self.aes_mode_combo_d = QComboBox()
+        self.aes_mode_combo_d.addItem(translator.get("aes_mode_ecb"), "ecb")
+        self.aes_mode_combo_d.addItem(translator.get("aes_mode_ctr"), "ctr")
+        self.aes_mode_combo_d.setFixedHeight(40)
+        self.aes_mode_combo_d.setStyleSheet(INPUT_STYLE)
+        self.aes_config_card.main_layout.addWidget(self.aes_mode_combo_d)
+        self.aes_config_card.main_layout.addSpacing(8)
+
+        self.aes_rounds_label_d = QLabel(translator.get("aes_rounds_label"))
+        self.aes_rounds_label_d.setStyleSheet("font-family: 'Roboto Mono', monospace; color: #4B5563; font-size: 13px; background-color: transparent;")
+        self.aes_config_card.main_layout.addWidget(self.aes_rounds_label_d)
+
+        self.aes_rounds_spin_d = QSpinBox()
+        self.aes_rounds_spin_d.setRange(1, 13)
+        self.aes_rounds_spin_d.setValue(10)
+        self.aes_rounds_spin_d.setFixedHeight(40)
+        self.aes_rounds_spin_d.setStyleSheet(INPUT_STYLE)
+        self.aes_config_card.main_layout.addWidget(self.aes_rounds_spin_d)
+        self.aes_config_card.main_layout.addSpacing(8)
+
+        self.aes_key_label_d = QLabel(translator.get("aes_key_label"))
+        self.aes_key_label_d.setStyleSheet("font-family: 'Roboto Mono', monospace; color: #4B5563; font-size: 13px; background-color: transparent;")
+        self.aes_config_card.main_layout.addWidget(self.aes_key_label_d)
+
+        self.aes_key_input_d = QLineEdit()
+        self.aes_key_input_d.setPlaceholderText(translator.get("aes_key_placeholder"))
+        self.aes_key_input_d.setFixedHeight(40)
+        self.aes_key_input_d.setStyleSheet(INPUT_STYLE)
+        self.aes_config_card.main_layout.addWidget(self.aes_key_input_d)
+        self.aes_config_card.main_layout.addStretch()
+
+        grid.addWidget(self.aes_config_card, 0, 0)
+
+        # Input Card
+        self.aes_input_card = CardWidget(translator.get("decripto_aes_input", "Ciphertext (Hex)"))
+        self.aes_text_input_d = QTextEdit()
+        self.aes_text_input_d.setPlaceholderText(translator.get("aes_input_placeholder"))
+        self.aes_text_input_d.setMinimumHeight(120)
+        self.aes_text_input_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.aes_text_input_d.setStyleSheet(INPUT_STYLE)
+        self.aes_input_card.main_layout.addWidget(self.aes_text_input_d)
+        grid.addWidget(self.aes_input_card, 0, 1)
+
+        # Action Button (row 1, col 0) - positioned directly below config card
+        self.aes_btn_decrypt = QPushButton(translator.get("aes_btn_decrypt"))
+        self.aes_btn_decrypt.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.aes_btn_decrypt.setMinimumHeight(44)
+        self.aes_btn_decrypt.setStyleSheet(BUTTON_PRIMARY)
+        self.aes_btn_decrypt.clicked.connect(self._decrypt_aes)
+        
+        btn_wrapper = QWidget()
+        btn_wrapper_layout = QVBoxLayout(btn_wrapper)
+        btn_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        btn_wrapper_layout.addWidget(self.aes_btn_decrypt)
+        btn_wrapper_layout.addStretch()
+        grid.addWidget(btn_wrapper, 1, 0)
+
+        # Output Card
+        self.aes_output_card = CardWidget(translator.get("decrypted_text", "Texto Decifrado"))
+        self.aes_text_output_d = QTextEdit()
+        self.aes_text_output_d.setReadOnly(True)
+        self.aes_text_output_d.setMinimumHeight(120)
+        self.aes_text_output_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.aes_text_output_d.setStyleSheet(INPUT_STYLE + "QTextEdit { font-size: 13px; }")
+        self.aes_output_card.main_layout.addWidget(self.aes_text_output_d)
+
+        self.aes_btn_copy_d = QPushButton(translator.get("aes_btn_copy"))
+        self.aes_btn_copy_d.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.aes_btn_copy_d.setMinimumHeight(38)
+        self.aes_btn_copy_d.setStyleSheet(BUTTON_PRIMARY)
+        self.aes_btn_copy_d.clicked.connect(self._copy_aes_result)
+        self.aes_output_card.main_layout.addWidget(self.aes_btn_copy_d)
+
+        grid.addWidget(self.aes_output_card, 1, 1)
+        grid.setRowStretch(2, 1)
+
+        layout.addLayout(grid)
+        layout.addStretch()
+
+    def _decrypt_aes(self):
+        raw = self.aes_text_input_d.toPlainText().strip()
+        key_text = self.aes_key_input_d.text().strip()
+
+        if not raw:
+            show_warning(self, translator.get("aes_msg_no_text"))
+            return
+        if not key_text:
+            show_warning(self, translator.get("aes_msg_no_key"))
+            return
+
+        key = normalize_key(key_text)
+        mode = self.aes_mode_combo_d.currentData()
+        rounds = self.aes_rounds_spin_d.value()
+
+        try:
+            data = bytes.fromhex(raw.replace(' ', '').replace('\n', ''))
+        except ValueError:
+            show_warning(self, "Formato hexadecimal inválido")
+            return
+
+        try:
+            if mode == "ecb":
+                result = aes_ecb_decrypt(data, key, rounds)
+            else:
+                if len(data) < 16:
+                    show_warning(self, translator.get("aes_msg_ctr_short"))
+                    return
+                iv = data[:16]
+                ciphertext = data[16:]
+                result = aes_ctr_decrypt(ciphertext, key, rounds, iv)
+            try:
+                text = result.decode('utf-8')
+                self.aes_text_output_d.setPlainText(text)
+            except UnicodeDecodeError:
+                self.aes_text_output_d.setPlainText(result.hex())
+        except Exception as e:
+            show_error(self, str(e))
+
+    def _copy_aes_result(self):
+        text = self.aes_text_output_d.toPlainText()
+        if text:
+            QApplication.clipboard().setText(text)
 
     def _create_left_panel(self):
         panel = QWidget()
@@ -674,6 +916,25 @@ class DecriptoPage(QWidget):
         self.input_text.setPlaceholderText(translator.get("input_placeholder"))
         self.analyzer.btn_apply.setText(translator.get("btn_confirm_letter"))
         self.column_label.setText(translator.get("col_label").format(curr=self._current_column + 1, total=self._key_length))
+
+        # Home page translations
+        self.home_title.setText(translator.get("decripto_home_title", "Decifração"))
+        self.home_subtitle.setText(translator.get("decripto_home_subtitle", "Selecione um método de decifração"))
+        self.btn_vigenere.setText(translator.get("decripto_tab_vigenere", "Análise Manual de Frequência"))
+        self.btn_aes_decrypt.setText(translator.get("decripto_tab_aes", "Decifração AES"))
+
+        # AES page translations
+        if hasattr(self, 'aes_config_card'):
+            self.aes_config_card.title_label.setText(translator.get("config_label", "Configurações"))
+            self.aes_mode_label_d.setText(translator.get("aes_mode_label"))
+            self.aes_rounds_label_d.setText(translator.get("aes_rounds_label"))
+            self.aes_key_label_d.setText(translator.get("aes_key_label"))
+            self.aes_key_input_d.setPlaceholderText(translator.get("aes_key_placeholder"))
+            self.aes_input_card.title_label.setText(translator.get("decripto_aes_input", "Ciphertext (Hex)"))
+            self.aes_text_input_d.setPlaceholderText(translator.get("aes_input_placeholder"))
+            self.aes_btn_decrypt.setText(translator.get("aes_btn_decrypt"))
+            self.aes_output_card.title_label.setText(translator.get("decrypted_text", "Texto Decifrado"))
+            self.aes_btn_copy_d.setText(translator.get("aes_btn_copy"))
 
         # Dynamic translation of runtime statistics based on initialization
         if not hasattr(self, '_ciphertext_original') or not self._ciphertext_original:

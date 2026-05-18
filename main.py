@@ -10,6 +10,7 @@ from ui.pages.ui_cripto import CriptoPage
 from ui.pages.ui_decripto import DecriptoPage
 from ui.pages.ui_home import HomePage
 from ui.pages.ui_settings import SettingsPage
+from ui.pages.ui_aes import AESPage
 from core.translator import translator
 from core.utils import get_resource_path
 
@@ -123,12 +124,18 @@ class UI_MainWindow:
         self.btn_decripto.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_decripto.setStyleSheet(self._btn_default_style)
         
+        self.btn_aes = QPushButton(" AES")
+        self.btn_aes.setIcon(QIcon(get_resource_path("assets/icons/shield.svg")))
+        self.btn_aes.setIconSize(icon_size)
+        self.btn_aes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_aes.setStyleSheet(self._btn_default_style)
         
         # Add top frame buttons
         self.left_menu_top_layout.addWidget(self.toggle_btn)
         self.left_menu_top_layout.addWidget(self.btn_home)
         self.left_menu_top_layout.addWidget(self.btn_cripto)
         self.left_menu_top_layout.addWidget(self.btn_decripto)
+        self.left_menu_top_layout.addWidget(self.btn_aes)
         
         # Menu spacer
         self.left_menu_spacer = QSpacerItem(
@@ -259,11 +266,13 @@ class UI_MainWindow:
         self.home = HomePage()
         self.cripto = CriptoPage()
         self.decripto = DecriptoPage()
+        self.aes = AESPage()
         self.settings = SettingsPage(version=self.version)
         
         self.pages.addWidget(self.home)
         self.pages.addWidget(self.cripto)
         self.pages.addWidget(self.decripto)
+        self.pages.addWidget(self.aes)
         self.pages.addWidget(self.settings)
         
         # Bottom bar
@@ -300,7 +309,7 @@ class UI_MainWindow:
     
     def set_active_button(self, active_btn):
         """Applies active style to the clicked button and resets the others"""
-        nav_buttons = [self.btn_home, self.btn_cripto, self.btn_decripto, self.btn_settings]
+        nav_buttons = [self.btn_home, self.btn_cripto, self.btn_decripto, self.btn_aes, self.btn_settings]
         for btn in nav_buttons:
             if btn is active_btn:
                 btn.setStyleSheet(self._btn_active_style)
@@ -334,7 +343,8 @@ class MainWindow(QMainWindow):
         self.ui.btn_home.clicked.connect(lambda: self.switch_tab(0))
         self.ui.btn_cripto.clicked.connect(lambda: self.switch_tab(1))
         self.ui.btn_decripto.clicked.connect(lambda: self.switch_tab(2))
-        self.ui.btn_settings.clicked.connect(lambda: self.switch_tab(3))
+        self.ui.btn_aes.clicked.connect(lambda: self.switch_tab(3))
+        self.ui.btn_settings.clicked.connect(lambda: self.switch_tab(4))
         
         # Connect home page buttons
         self.ui.home.btn_cripto.clicked.connect(lambda: self.switch_tab(1))
@@ -364,12 +374,14 @@ class MainWindow(QMainWindow):
             self.ui.btn_home.setText(translator.get("menu_home"))
             self.ui.btn_cripto.setText(translator.get("menu_encrypt"))
             self.ui.btn_decripto.setText(translator.get("menu_decrypt"))
+            self.ui.btn_aes.setText(translator.get("menu_aes"))
             self.ui.btn_settings.setText(translator.get("menu_settings"))
         else:
             self.ui.toggle_btn.setText("")
             self.ui.btn_home.setText("")
             self.ui.btn_cripto.setText("")
             self.ui.btn_decripto.setText("")
+            self.ui.btn_aes.setText("")
             self.ui.btn_settings.setText("")
             
     def retranslate_ui(self, lang_code=None):
@@ -378,6 +390,7 @@ class MainWindow(QMainWindow):
             translator.get("app_title_home"), 
             translator.get("app_title_encrypt"), 
             translator.get("app_title_decrypt"), 
+            translator.get("app_title_aes"),
             translator.get("app_title_settings")
         ]
         curr_index = self.ui.pages.currentIndex()
@@ -406,8 +419,12 @@ class MainWindow(QMainWindow):
         """Changes active page"""
         self.ui.pages.setCurrentIndex(index)
         
+        # Reset sub-pages to home when navigating to Decripto
+        if index == 2 and hasattr(self.ui.decripto, 'decripto_stack'):
+            self.ui.decripto.decripto_stack.setCurrentIndex(0)
+        
         # Update active button
-        buttons = [self.ui.btn_home, self.ui.btn_cripto, self.ui.btn_decripto, self.ui.btn_settings]
+        buttons = [self.ui.btn_home, self.ui.btn_cripto, self.ui.btn_decripto, self.ui.btn_aes, self.ui.btn_settings]
         self.ui.set_active_button(buttons[index])
         
         # Update title
@@ -415,13 +432,14 @@ class MainWindow(QMainWindow):
             translator.get("app_title_home"), 
             translator.get("app_title_encrypt"), 
             translator.get("app_title_decrypt"), 
+            translator.get("app_title_aes"),
             translator.get("app_title_settings")
         ]
         self.ui.update_label_title(titles[index])
     
     def goto_instructions(self):
         """Redirects directly to the settings instructions sub-tab"""
-        self.switch_tab(3)
+        self.switch_tab(4)
         self.ui.settings._switch_tab(2)
 
     def top_bar_mouse_press(self, event):
