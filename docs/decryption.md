@@ -81,6 +81,9 @@ The accuracy of the cryptanalysis depends on the quality of the language statist
 ### 4. Interactive Frequency Analyzer (UI Integration)
 The `InteractiveFrequencyAnalyzer` class in `ui/pages/ui_decripto.py` provides a bridge between these algorithms and the user, allowing for real-time visualization of column frequencies as the user adjusts the suspected key length.
 
+### 5. Note on AES Decryption
+The application also includes a dedicated **AES** page (`ui/pages/ui_aes.py`) that supports manual encryption and decryption using AES-128 in ECB and CTR modes. Unlike Vigenère, AES decryption is deterministic and does not require statistical cryptanalysis. The AES page is documented in detail in the [AES Technical Report](aes_report.md) and the [Encryption Deep-Dive](encryption.md).
+
 ---
 
 ## Português
@@ -144,3 +147,6 @@ A precisão da criptoanálise depende da qualidade dos dados estatísticos do id
 
 ### 4. Analisador Interativo de Frequência (Integração com a UI)
 A classe `InteractiveFrequencyAnalyzer` em `ui/pages/ui_decripto.py` fornece uma ponte entre esses algoritmos e o usuário, permitindo a visualização em tempo real das frequências das colunas conforme o usuário ajusta o comprimento da chave suspeito.
+
+### 5. Nota sobre Decifração AES
+A aplicação também inclui uma página dedicada ao **AES** (`ui/pages/ui_aes.py`) que suporta cifração e decifração manual usando AES-128 nos modos ECB e CTR. Ao contrário do Vigenère, a decifração AES é determinística e não requer criptoanálise estatística. A página AES é documentada em detalhes no [Relatório Técnico do AES](aes_report.md) e no [Deep-Dive de Cifra](encryption.md).

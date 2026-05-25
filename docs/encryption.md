@@ -55,6 +55,146 @@ for char in text:
         ciphertext.append(char)
 ```
 
+### 3. AES-128 Implementation from Scratch
+
+The `core/aes.py` module implements the Advanced Encryption Standard (FIPS-197) entirely in pure Python, without relying on external cryptographic libraries. It supports configurable rounds (`1` to `14`), enabling educational experiments with reduced-round variants.
+
+#### 3.1 State Representation & Transformations
+
+AES operates on a 4×4 matrix of bytes called the **state**. Each transformation is applied in-place:
+
+1. **SubBytes**: Non-linear byte substitution using a 256-byte S-box.
+2. **ShiftRows**: Cyclic left shift of rows (row 0 by 0, row 1 by 1, row 2 by 2, row 3 by 3).
+3. **MixColumns**: Matrix multiplication in the finite field GF(2⁸) with irreducible polynomial `x⁸ + x⁴ + x³ + x + 1` (`0x11B`). Each column is multiplied by a fixed polynomial matrix:
+   ```
+   [02 03 01 01]
+   [01 02 03 01]
+   [01 01 02 03]
+   [03 01 01 02]
+   ```
+4. **AddRoundKey**: XOR the state with a 16-byte round key.
+
+Multiplication in GF(2⁸) is implemented via bitwise shift-and-reduce:
+
+```python
+# From core/aes.py
+def _gmul(a: int, b: int) -> int:
+    p = 0
+    for _ in range(8):
+        if b & 1:
+            p ^= a
+        hi = a & 0x80
+        a <<= 1
+        if hi:
+            a ^= 0x1B  # 0x11B without x^8 term
+        b >>= 1
+    return p & 0xFF
+```
+
+Pre-computed lookup tables (`_MUL2`, `_MUL3`, `_MUL9`, `_MUL11`, `_MUL13`, `_MUL14`) optimize `MixColumns` and `InvMixColumns`.
+
+#### 3.2 Key Expansion (Generalized)
+
+The `key_expansion` function generates `(num_rounds + 1)` 128-bit round keys from a 16-byte cipher key. It follows the standard AES Key Schedule but is generalized to support any `num_rounds` between 1 and 14:
+
+```python
+# Simplified excerpt from core/aes.py
+def key_expansion(key: bytes, num_rounds: int) -> List[bytes]:
+    w = [key[i:i+4] for i in range(0, 16, 4)]
+    for i in range(4, 4 * (num_rounds + 1)):
+        temp = w[i - 1]
+        if i % 4 == 0:
+            temp = _sub_word(_rot_word(temp))
+            temp = bytes(a ^ b for a, b in zip(temp, _rcon(i // 4)))
+        w.append(bytes(a ^ b for a, b in zip(w[i - 4], temp)))
+    # Pack words into 16-byte round keys
+    return [b''.join(w[i:i+4]) for i in range(0, len(w), 4)]
+```
+
+#### 3.3 Block Encryption
+
+The `encrypt_block` function applies the round transformations sequentially:
+
+```python
+# Excerpt from core/aes.py
+def encrypt_block(block: bytes, round_keys: List[bytes], num_rounds: int) -> bytes:
+    state = _bytes_to_state(block)
+    _add_round_key(state, round_keys[0])
+    for r in range(1, num_rounds):
+        _sub_bytes(state)
+        _shift_rows(state)
+        _mix_columns(state)
+        _add_round_key(state, round_keys[r])
+    # Final round (no MixColumns)
+    _sub_bytes(state)
+    _shift_rows(state)
+    _add_round_key(state, round_keys[num_rounds])
+    return _state_to_bytes(state)
+```
+
+#### 3.4 Modes of Operation
+
+**ECB (Electronic Codebook)** encrypts each 16-byte block independently. Identical plaintext blocks yield identical ciphertext blocks, making patterns visible in images. Padding uses PKCS#7.
+
+**CTR (Counter Mode)** turns AES into a stream cipher. A 16-byte nonce is encrypted to produce a keystream, which is XORed with the plaintext. No padding is required, and the visual result is uniformly noisy because every block is XORed with a unique keystream block.
+
+```python
+# From core/modes.py
+def aes_ctr_encrypt(data: bytes, key: bytes, num_rounds: int = 10, iv=None):
+    round_keys = key_expansion(key, num_rounds)
+    nonce = iv or os.urandom(16)
+    output = bytearray()
+    for i in range(0, len(data), BLOCK_SIZE):
+        block = data[i:i + BLOCK_SIZE]
+        keystream = encrypt_block(nonce, round_keys, num_rounds)
+        output.extend(b ^ k for b, k in zip(block, keystream))
+        nonce = _inc_nonce(nonce)
+    return bytes(output), iv
+```
+
+### 4. The Didactic Visual Cipher (Innovation)
+
+A standard AES with only 3 rounds already produces ciphertext that is statistically indistinguishable from random noise. While cryptographically desirable, this makes it impossible to *visually* demonstrate how each transformation contributes to the final scrambled image.
+
+To solve this, the project introduces **`encrypt_block_visual`**, a pedagogical variant that **omits `MixColumns` in intermediate rounds below a threshold** (`mixcol_after`, default 3). This creates a progressive visual effect:
+
+| Rounds | MixColumns Active From | Visual Effect |
+|--------|------------------------|---------------|
+| 3 | Never | Only SubBytes + ShiftRows + AddRoundKey. Colours are permuted and rows shifted, but local structure (blocks, edges) remains visible. |
+| 5 | Round 3 onward | Colours begin to blend across columns. Shapes blur but large features survive. |
+| 9 | Round 3 onward | Strong diffusion; most structure lost; approaching noise. |
+| 13 | Round 3 onward | Full diffusion; visually indistinguishable from standard AES. |
+
+```python
+# From core/aes.py — the didactic visual variant
+def encrypt_block_visual(block: bytes, round_keys: List[bytes],
+                         num_rounds: int, mixcol_after: int = 3) -> bytes:
+    state = _bytes_to_state(block)
+    _add_round_key(state, round_keys[0])
+    for r in range(1, num_rounds):
+        _sub_bytes(state)
+        _shift_rows(state)
+        if r >= mixcol_after:
+            _mix_columns(state)
+        _add_round_key(state, round_keys[r])
+    _sub_bytes(state)
+    _shift_rows(state)
+    _add_round_key(state, round_keys[num_rounds])
+    return _state_to_bytes(state)
+```
+
+This approach preserves the **exact same key schedule and round structure** as real AES; the only difference is the conditional omission of `MixColumns` in early rounds. When the threshold is reached, the cipher converges to standard AES behaviour, ensuring that the 13-round output is genuinely secure.
+
+### 5. Image Visualization Pipeline
+
+For the selfie demonstration:
+
+1. **BMP Conversion**: Any input image is scaled to 512×512 and converted to a 24-bit uncompressed BMP.
+2. **Header Extraction**: The 54-byte BMP header is preserved. Only the raw pixel bytes are encrypted.
+3. **Encryption**: Pixel bytes are fed through `aes_ecb_encrypt_visual` or `aes_ctr_encrypt_visual`.
+4. **Reconstruction**: The original header is prepended to the encrypted pixels, producing a valid BMP that Qt renders.
+5. **Export**: The rendered preview is saved as a PNG file.
+
 ---
 
 ## Português
@@ -99,3 +239,143 @@ if char.isalpha():
 else:
     ciphertext.append(char)
 ```
+
+### 3. Implementação AES-128 do Zero
+
+O módulo `core/aes.py` implementa o Advanced Encryption Standard (FIPS-197) inteiramente em Python puro, sem depender de bibliotecas criptográficas externas. Ele suporta rodadas configuráveis (`1` a `14`), possibilitando experimentos educacionais com variantes de rodadas reduzidas.
+
+#### 3.1 Representação do Estado e Transformações
+
+O AES opera em uma matriz 4×4 de bytes chamada **estado**. Cada transformação é aplicada in-place:
+
+1. **SubBytes**: Substituição não linear byte a byte usando uma S-box de 256 bytes.
+2. **ShiftRows**: Deslocamento cíclico à esquerda das linhas (linha 0 em 0, linha 1 em 1, linha 2 em 2, linha 3 em 3).
+3. **MixColumns**: Multiplicação matricial no corpo finito GF(2⁸) com polinômio irredutível `x⁸ + x⁴ + x³ + x + 1` (`0x11B`). Cada coluna é multiplicada por uma matriz fixa:
+   ```
+   [02 03 01 01]
+   [01 02 03 01]
+   [01 01 02 03]
+   [03 01 01 02]
+   ```
+4. **AddRoundKey**: XOR do estado com uma chave de rodada de 16 bytes.
+
+A multiplicação em GF(2⁸) é implementada via deslocamento bit a bit com redução:
+
+```python
+# De core/aes.py
+def _gmul(a: int, b: int) -> int:
+    p = 0
+    for _ in range(8):
+        if b & 1:
+            p ^= a
+        hi = a & 0x80
+        a <<= 1
+        if hi:
+            a ^= 0x1B  # 0x11B sem o termo x^8
+        b >>= 1
+    return p & 0xFF
+```
+
+Tabelas pré-computadas (`_MUL2`, `_MUL3`, `_MUL9`, `_MUL11`, `_MUL13`, `_MUL14`) otimizam `MixColumns` e `InvMixColumns`.
+
+#### 3.2 Expansão de Chave (Generalizada)
+
+A função `key_expansion` gera `(num_rounds + 1)` chaves de rodada de 128 bits a partir de uma chave de 16 bytes. Segue o Key Schedule padrão do AES, mas generalizado para suportar qualquer `num_rounds` entre 1 e 14:
+
+```python
+# Trecho simplificado de core/aes.py
+def key_expansion(key: bytes, num_rounds: int) -> List[bytes]:
+    w = [key[i:i+4] for i in range(0, 16, 4)]
+    for i in range(4, 4 * (num_rounds + 1)):
+        temp = w[i - 1]
+        if i % 4 == 0:
+            temp = _sub_word(_rot_word(temp))
+            temp = bytes(a ^ b for a, b in zip(temp, _rcon(i // 4)))
+        w.append(bytes(a ^ b for a, b in zip(w[i - 4], temp)))
+    # Agrupa words em chaves de rodada de 16 bytes
+    return [b''.join(w[i:i+4]) for i in range(0, len(w), 4)]
+```
+
+#### 3.3 Cifração de Bloco
+
+A função `encrypt_block` aplica as transformações de rodada sequencialmente:
+
+```python
+# Trecho de core/aes.py
+def encrypt_block(block: bytes, round_keys: List[bytes], num_rounds: int) -> bytes:
+    state = _bytes_to_state(block)
+    _add_round_key(state, round_keys[0])
+    for r in range(1, num_rounds):
+        _sub_bytes(state)
+        _shift_rows(state)
+        _mix_columns(state)
+        _add_round_key(state, round_keys[r])
+    # Rodada final (sem MixColumns)
+    _sub_bytes(state)
+    _shift_rows(state)
+    _add_round_key(state, round_keys[num_rounds])
+    return _state_to_bytes(state)
+```
+
+#### 3.4 Modos de Operação
+
+**ECB (Electronic Codebook)** cifra cada bloco de 16 bytes independentemente. Blocos idênticos de plaintext produzem blocos idênticos de ciphertext, tornando padrões visíveis em imagens. O padding usa PKCS#7.
+
+**CTR (Counter Mode)** transforma o AES em uma cifra de fluxo. Um nonce de 16 bytes é cifrado para produzir um keystream, que é XORado com o plaintext. Não requer padding, e o resultado visual é uniformemente ruidoso porque cada bloco é XORado com um bloco único de keystream.
+
+```python
+# De core/modes.py
+def aes_ctr_encrypt(data: bytes, key: bytes, num_rounds: int = 10, iv=None):
+    round_keys = key_expansion(key, num_rounds)
+    nonce = iv or os.urandom(16)
+    output = bytearray()
+    for i in range(0, len(data), BLOCK_SIZE):
+        block = data[i:i + BLOCK_SIZE]
+        keystream = encrypt_block(nonce, round_keys, num_rounds)
+        output.extend(b ^ k for b, k in zip(block, keystream))
+        nonce = _inc_nonce(nonce)
+    return bytes(output), iv
+```
+
+### 4. A Cifra Didática Visual (Inovação)
+
+Um AES padrão com apenas 3 rodadas já produz ciphertext estatisticamente indistinguível de ruído aleatório. Embora desejável do ponto de vista criptográfico, isso torna impossível *visualmente* demonstrar como cada transformação contribui para a imagem final embaralhada.
+
+Para resolver isso, o projeto introduz o **`encrypt_block_visual`**, uma variante pedagógica que **omite o `MixColumns` nas rodadas intermediárias abaixo de um limiar** (`mixcol_after`, padrão 3). Isso cria um efeito visual progressivo:
+
+| Rodadas | MixColumns Ativo A Partir De | Efeito Visual |
+|---------|------------------------------|---------------|
+| 3 | Nunca | Apenas SubBytes + ShiftRows + AddRoundKey. As cores são permutadas e as linhas deslocadas, mas a estrutura local (blocos, bordas) permanece visível. |
+| 5 | Rodada 3 em diante | As cores começam a se misturar entre colunas. As formas se desfocam, mas grandes características sobrevivem. |
+| 9 | Rodada 3 em diante | Difusão forte; a maior parte da estrutura é perdida; aproximando-se do ruído. |
+| 13 | Rodada 3 em diante | Difusão total; visualmente indistinguível do AES padrão. |
+
+```python
+# De core/aes.py — a variante didática visual
+def encrypt_block_visual(block: bytes, round_keys: List[bytes],
+                         num_rounds: int, mixcol_after: int = 3) -> bytes:
+    state = _bytes_to_state(block)
+    _add_round_key(state, round_keys[0])
+    for r in range(1, num_rounds):
+        _sub_bytes(state)
+        _shift_rows(state)
+        if r >= mixcol_after:
+            _mix_columns(state)
+        _add_round_key(state, round_keys[r])
+    _sub_bytes(state)
+    _shift_rows(state)
+    _add_round_key(state, round_keys[num_rounds])
+    return _state_to_bytes(state)
+```
+
+Essa abordagem preserva o **mesmo key schedule e estrutura de rodadas** do AES real; a única diferença é a omissão condicional do `MixColumns` nas rodadas iniciais. Quando o limiar é alcançado, a cifra converge ao comportamento padrão do AES, garantindo que a saída de 13 rodadas seja genuinamente segura.
+
+### 5. Pipeline de Visualização de Imagem
+
+Para a demonstração com selfie:
+
+1. **Conversão BMP**: Qualquer imagem de entrada é redimensionada para 512×512 e convertida para um BMP 24-bit não comprimido.
+2. **Extração de Header**: Os 54 bytes do header BMP são preservados. Apenas os bytes brutos de pixel são cifrados.
+3. **Cifração**: Os bytes de pixel são processados por `aes_ecb_encrypt_visual` ou `aes_ctr_encrypt_visual`.
+4. **Reconstrução**: O header BMP original é prefixado aos pixels cifrados, produzindo um BMP válido que o Qt renderiza.
+5. **Exportação**: O preview renderizado é salvo como arquivo PNG.

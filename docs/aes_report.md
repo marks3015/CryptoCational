@@ -68,6 +68,15 @@ O modo **CTR** transforma uma cifra de bloco em uma **cifra de fluxo**:
 **Desvantagens**:
 - Requer IV/nonce único para cada mensagem (reuso de IV com a mesma chave compromete a segurança).
 
+### 2.3 Modos Visuais Didáticos
+
+Além dos modos criptográficos padrão, o projeto introduz variantes didáticas para a demonstração com imagens:
+
+- **`aes_ecb_encrypt_visual`**: Usa `encrypt_block_visual` (que omite `MixColumns` nas rodadas iniciais) para preservar a estrutura visual em rodadas baixas.
+- **`aes_ctr_encrypt_visual`**: Gera o keystream com `encrypt_block_visual`, mantendo a mesma progressão visual no modo CTR.
+
+A omissão controlada do `MixColumns` é uma decisão **puramente pedagógica**: o AES real com 3 rodadas já produz ruído indistinguível, o que impede a observação visual do papel de cada transformação. As funções visuais usam o mesmo key schedule e as mesmas operações (`SubBytes`, `ShiftRows`, `AddRoundKey`), diferindo apenas pela introdução gradual do `MixColumns`.
+
 ---
 
 ## 3. Descrição da Implementação
@@ -76,8 +85,9 @@ O modo **CTR** transforma uma cifra de bloco em uma **cifra de fluxo**:
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `core/aes.py` | Implementação manual do AES-128: S-box, transformações de rodada, expansão de chave generalizada, cifração/decifração de bloco único, padding PKCS#7, normalização de chave. |
-| `core/modes.py` | Implementação dos modos ECB e CTR sobre `core/aes`, função auxiliar para converter ciphertext em bytes visualizáveis como imagem. |
+| `core/aes.py` | Implementação manual do AES-128: S-box, transformações de rodada, expansão de chave generalizada, cifração/decifração de bloco único, padding PKCS#7, normalização de chave, e a variante didática `encrypt_block_visual`. |
+| `core/modes.py` | Implementação dos modos ECB e CTR (padrão e visual) sobre `core/aes`. |
+| `core/bmp_utils.py` | Conversão de imagens para BMP 24-bit, extração de header/pixels e reconstrução de BMP válido. |
 | `ui/pages/ui_aes.py` | Interface gráfica dedicada ao AES: configuração de modo/rodadas/chave, área de cifração/decifração de textos/arquivos, seção de testes com selfie (8 configurações: ECB/CTR × 4 contagens de rodadas). |
 | `main.py` | Integração da nova página no menu lateral (botão "AES" com ícone shield.svg) e no stack de páginas. |
 | `core/translator.py` | Strings bilíngues (PT/EN) para todos os elementos da nova interface. |
@@ -85,9 +95,11 @@ O modo **CTR** transforma uma cifra de bloco em uma **cifra de fluxo**:
 ### 3.2 Destaques Técnicos
 
 - **Sem bibliotecas criptográficas externas**: Toda a primitiva (AES, KeyExpansion, MixColumns em GF(2⁸)) foi implementada manualmente em Python puro.
-- **Controle de rodadas**: A `key_expansion` foi generalizada para gerar round keys para qualquer `Nr` entre 1 e 13 (conforme exigido pelo trabalho), permitindo os testes com 3, 5, 9, 10 e 13 rodadas.
+- **Controle de rodadas**: A `key_expansion` foi generalizada para gerar round keys para qualquer `Nr` entre 1 e 14 (conforme exigido pelo trabalho), permitindo os testes com 3, 5, 9, 10 e 13 rodadas.
 - **Multiplicação em GF(2⁸)**: Implementada via multiplicação bit a bit com redução pelo polinômio 0x11B. Foram pré-computadas tabelas `_MUL2`, `_MUL3`, `_MUL9`, `_MUL11`, `_MUL13`, `_MUL14` para otimizar `MixColumns` e `InvMixColumns`.
-- **Visualização de ciphertext**: Para os testes com selfie, os bytes cifrados são reinterpretados como pixels em escala de cinza (1 byte = 1 pixel) em uma imagem de dimensões quadradas aproximadas, permitindo observar visualmente os padrões do ECB vs. o ruído do CTR.
+- **Cifra visual didática**: A função `encrypt_block_visual` omite `MixColumns` nas rodadas intermediárias abaixo de um limiar (`mixcol_after=3`), criando um efeito visual progressivo que permite observar o impacto isolado de `SubBytes`, `ShiftRows` e `AddRoundKey` antes da difusão completa.
+- **Manipulação de BMP**: A cifração visual preserva o header BMP original (54 bytes) e cifra apenas os pixels. Isso garante que o resultado seja uma imagem BMP válida que pode ser renderizada diretamente pelo Qt.
+- **Salvamento como PNG**: Os resultados dos testes de selfie são salvos como arquivos PNG, não como `.dat` bruto. O arquivo exportado é exatamente a imagem visual exibida na tela.
 - **Interface em 2 abas**: A página AES foi dividida em duas abas separadas — **"Texto"** para cifração/decifração de dados e **"Selfie"** para testes com imagens — mantendo a interface organizada e focada.
 
 ---
@@ -114,7 +126,14 @@ O modo **CTR** transforma uma cifra de bloco em uma **cifra de fluxo**:
    - ECB com 3, 5, 9 e 13 rodadas.
    - CTR com 3, 5, 9 e 13 rodadas.
 5. Cada resultado é renderizado como uma imagem visual e seu **hash SHA-256** é exibido.
-6. Use o botão **Salvar** em cada card para exportar o arquivo de ciphertext bruto.
+6. Use o botão **Salvar** em cada card para exportar a imagem visual como **PNG**.
+
+### 4.3 O que Esperar Visualmente em Cada Configuração
+
+- **3 rodadas**: A estrutura da imagem ainda é reconhecível. Apenas `SubBytes` (troca de cores), `ShiftRows` (deslocamento de linhas) e `AddRoundKey` foram aplicados. Blocos de cor uniforme no plaintext ainda aparecem como blocos no ciphertext (especialmente em ECB).
+- **5 rodadas**: Distorção significativa. `MixColumns` começa a atuar a partir da 3ª rodada, misturando bytes dentro de cada coluna. Grandes formas ainda podem ser identificadas, mas detalhes se perdem.
+- **9 rodadas**: Difusão quase total. A imagem se assemelha a ruído aleatório, com pouquíssima estrutura remanescente.
+- **13 rodadas**: Ruído completo, indistinguível do AES padrão. A cifra visual converge ao comportamento criptográfico real.
 
 ---
 
@@ -124,3 +143,4 @@ A implementação foi validada com:
 
 - **Vetor de teste NIST FIPS-197** para AES-128 (10 rodadas): plaintext `00112233...EEFF` com chave `00010203...0E0F` produz ciphertext `69C4E0D8...C55A`, confirmando a exatidão da implementação.
 - **Round-trip tests**: ECB e CTR com 3, 5, 9, 10 e 13 rodadas foram testados com cifração seguida de decifração, recuperando o plaintext original em todos os casos.
+- **Testes de visualização**: A contagem de blocos repetidos em imagens sintéticas (blocos de cor uniforme 64×64) confirmou que ECB preserva padrões estruturais (blocos idênticos → blocos cifrados idênticos), enquanto CTR produz blocos únicos em todos os casos.
