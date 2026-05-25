@@ -18,7 +18,7 @@ from core.utils import get_resource_path
 
 
 class UI_MainWindow:
-    def __init__(self, version="v1.0.0"):
+    def __init__(self, version="v1.1.0"):
         self.version = version
         
         # Navigation button styles
