@@ -39,3 +39,4 @@ desktop.ini
 # Application-specific (if you generate installers)
 *.exe
 *.spec
+!CryptoCational.spec
