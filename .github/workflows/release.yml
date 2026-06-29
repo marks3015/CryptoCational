@@ -36,10 +36,24 @@ jobs:
           $tag = "${{ github.ref_name }}"
           Rename-Item -Path "dist/CryptoCational.exe" -NewName "CryptoCational-$tag.exe"
 
+      - name: Check for custom release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notesPath = "docs/release_notes/$tag.md"
+          if (Test-Path $notesPath) {
+            Write-Output "found=true" >> $env:GITHUB_OUTPUT
+            Write-Output "path=$notesPath" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "found=false" >> $env:GITHUB_OUTPUT
+          }
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/CryptoCational-*.exe
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.found == 'true' && steps.notes.outputs.path || '' }}
+          generate_release_notes: ${{ steps.notes.outputs.found != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
