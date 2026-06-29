@@ -197,6 +197,104 @@ For the selfie demonstration:
 
 ---
 
+### 6. RSA-OAEP Implementation
+
+The `core/rsa/` sub-package implements RSA-2048 with OAEP padding entirely in pure Python, without any external cryptographic library.
+
+#### 6.1 Prime Generation — Miller-Rabin
+
+Generating large prime numbers is the computational foundation of RSA. The implementation uses the **Miller-Rabin probabilistic primality test** with `k=64` rounds, reducing the false-positive probability to below $4^{-64} \approx 2.9 \times 10^{-39}$.
+
+Given a candidate $n$, write $n - 1 = 2^r \cdot d$ with $d$ odd. For each random witness $a \in [2, n-2]$:
+
+```python
+# From core/rsa/keys.py
+x = pow(a, d, n)
+if x == 1 or x == n - 1:
+    continue  # probably prime for this witness
+for _ in range(r - 1):
+    x = pow(x, 2, n)
+    if x == n - 1:
+        break
+else:
+    return False  # definitely composite
+```
+
+All random choices use `secrets.randbelow`, ensuring cryptographically strong entropy.
+
+#### 6.2 Key Pair Generation
+
+```
+p, q ← generate_prime(1024)   # two distinct 1024-bit primes
+n = p × q                      # 2048-bit modulus
+φ(n) = (p−1)(q−1)
+e = 65537                      # public exponent (Fermat prime F₄)
+d ≡ e⁻¹ (mod φ(n))            # private exponent via pow(e, -1, phi)
+Public key:  (n, e)
+Private key: (n, d)
+```
+
+#### 6.3 OAEP Padding (RFC 8017)
+
+The Optimal Asymmetric Encryption Padding ensures semantic security (IND-CCA2) by introducing randomness into each encryption. Using SHA3-256 (`hLen = 32`) and MGF1:
+
+| Symbol | Value | Description |
+|--------|-------|-------------|
+| `k` | 256 bytes | Modulus byte length for RSA-2048 |
+| `hLen` | 32 bytes | SHA3-256 digest size |
+| `mLen_max` | 190 bytes | `k − 2·hLen − 2` |
+
+**Encoding steps:**
+
+```
+lHash  = SHA3-256(label)                          # label default = b""
+PS     = b"\x00" × (k − mLen − 2·hLen − 2)       # zero-padding
+DB     = lHash ‖ PS ‖ 0x01 ‖ M                    # data block
+seed   = secrets.token_bytes(hLen)                # 32 random bytes
+maskedDB   = DB   ⊕ MGF1(seed, k − hLen − 1)
+maskedSeed = seed ⊕ MGF1(maskedDB, hLen)
+EM     = 0x00 ‖ maskedSeed ‖ maskedDB             # encoded message
+```
+
+Decoding reverses these steps and verifies `lHash` and the `0x01` separator, raising `ValueError` on any mismatch.
+
+#### 6.4 Encryption and Decryption
+
+Encryption converts the OAEP-encoded message to an integer and applies modular exponentiation:
+
+```python
+# From core/rsa/cipher.py
+c = pow(int.from_bytes(oaep_encode(M, n), "big"), e, n)
+```
+
+Decryption is the inverse:
+
+```python
+m_int = pow(c, d, n)
+M = oaep_decode(m_int.to_bytes(k, "big"), n)
+```
+
+Python's built-in `pow(base, exp, mod)` implements the square-and-multiply algorithm in C, making it efficient even for 2048-bit exponents.
+
+#### 6.5 Digital Signature
+
+The signature scheme signs the **hash** of the message, not the message directly:
+
+```
+Sign:   σ = pow(OAEP_encode(SHA3-256(M), n), d, n)
+Verify: H' = OAEP_decode(pow(σ, e, n), n)
+        valid iff H' == SHA3-256(M)
+```
+
+This provides:
+- **Integrity**: Any modification to `M` changes `SHA3-256(M)`, invalidating the signature.
+- **Authentication**: Only the holder of `d` (private key) can produce a valid `σ`.
+- **Non-repudiation**: The signer cannot deny having signed `M`.
+
+For a full technical walkthrough of the RSA-OAEP integration, see the [RSA Technical Report](rsa_report.md).
+
+---
+
 ## Português
 
 ### 1. Normalização de Alfabeto e Mapeamento
@@ -379,3 +477,101 @@ Para a demonstração com selfie:
 3. **Cifração**: Os bytes de pixel são processados por `aes_ecb_encrypt_visual` ou `aes_ctr_encrypt_visual`.
 4. **Reconstrução**: O header BMP original é prefixado aos pixels cifrados, produzindo um BMP válido que o Qt renderiza.
 5. **Exportação**: O preview renderizado é salvo como arquivo PNG.
+
+---
+
+### 6. Implementação RSA-OAEP
+
+O sub-pacote `core/rsa/` implementa RSA-2048 com padding OAEP inteiramente em Python puro, sem qualquer biblioteca criptográfica externa.
+
+#### 6.1 Geração de Primos — Miller-Rabin
+
+A geração de grandes números primos é o fundamento computacional do RSA. A implementação usa o **teste de primalidade probabilístico de Miller-Rabin** com `k=64` rounds, reduzindo a probabilidade de falso positivo para menos de $4^{-64} \approx 2.9 \times 10^{-39}$.
+
+Dado um candidato $n$, escrevemos $n - 1 = 2^r \cdot d$ com $d$ ímpar. Para cada testemunha aleatória $a \in [2, n-2]$:
+
+```python
+# De core/rsa/keys.py
+x = pow(a, d, n)
+if x == 1 or x == n - 1:
+    continue  # provavelmente primo para esta testemunha
+for _ in range(r - 1):
+    x = pow(x, 2, n)
+    if x == n - 1:
+        break
+else:
+    return False  # definitivamente composto
+```
+
+Todas as escolhas aleatórias usam `secrets.randbelow`, garantindo entropia criptograficamente forte.
+
+#### 6.2 Geração do Par de Chaves
+
+```
+p, q ← generate_prime(1024)   # dois primos distintos de 1024 bits
+n = p × q                      # módulo de 2048 bits
+φ(n) = (p−1)(q−1)
+e = 65537                      # expoente público (primo de Fermat F₄)
+d ≡ e⁻¹ (mod φ(n))            # expoente privado via pow(e, -1, phi)
+Chave pública:  (n, e)
+Chave privada: (n, d)
+```
+
+#### 6.3 Padding OAEP (RFC 8017)
+
+O Optimal Asymmetric Encryption Padding garante segurança semântica (IND-CCA2) introduzindo aleatoriedade em cada cifração. Usando SHA3-256 (`hLen = 32`) e MGF1:
+
+| Símbolo | Valor | Descrição |
+|---------|-------|-----------|
+| `k` | 256 bytes | Tamanho em bytes do módulo RSA-2048 |
+| `hLen` | 32 bytes | Tamanho do digest SHA3-256 |
+| `mLen_max` | 190 bytes | `k − 2·hLen − 2` |
+
+**Etapas de codificação:**
+
+```
+lHash  = SHA3-256(label)                          # label padrão = b""
+PS     = b"\x00" × (k − mLen − 2·hLen − 2)       # zero-padding
+DB     = lHash ‖ PS ‖ 0x01 ‖ M                    # data block
+seed   = secrets.token_bytes(hLen)                # 32 bytes aleatórios
+maskedDB   = DB   ⊕ MGF1(seed, k − hLen − 1)
+maskedSeed = seed ⊕ MGF1(maskedDB, hLen)
+EM     = 0x00 ‖ maskedSeed ‖ maskedDB             # mensagem codificada
+```
+
+A decodificação reverte esses passos e verifica `lHash` e o separador `0x01`, lançando `ValueError` em qualquer divergência.
+
+#### 6.4 Cifração e Decifração
+
+A cifração converte a mensagem codificada pelo OAEP em inteiro e aplica exponenciação modular:
+
+```python
+# De core/rsa/cipher.py
+c = pow(int.from_bytes(oaep_encode(M, n), "big"), e, n)
+```
+
+A decifração é o inverso:
+
+```python
+m_int = pow(c, d, n)
+M = oaep_decode(m_int.to_bytes(k, "big"), n)
+```
+
+O `pow(base, exp, mod)` do Python implementa o algoritmo *square-and-multiply* em C, tornando-o eficiente mesmo para expoentes de 2048 bits.
+
+#### 6.5 Assinatura Digital
+
+O esquema de assinatura assina o **hash** da mensagem, não a mensagem diretamente:
+
+```
+Assinar:   σ = pow(OAEP_encode(SHA3-256(M), n), d, n)
+Verificar: H' = OAEP_decode(pow(σ, e, n), n)
+           válido sse H' == SHA3-256(M)
+```
+
+Isso fornece:
+- **Integridade**: Qualquer modificação em `M` altera `SHA3-256(M)`, invalidando a assinatura.
+- **Autenticação**: Apenas quem possui `d` (chave privada) pode produzir um `σ` válido.
+- **Não-repúdio**: O signatário não pode negar ter assinado `M`.
+
+Para um detalhamento técnico completo da integração RSA-OAEP, consulte o [Relatório Técnico RSA](rsa_report.md).

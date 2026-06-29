@@ -35,7 +35,46 @@ This guide explains how to effectively use the primary features of the **CryptoC
    - **13 rounds**: Full noise, equivalent to real AES encryption.
 5. **Save**: Click **Save** on any card to export the visual result as a **PNG** file.
 
-### 4. Decrypting & Cryptanalysis (Vigenère)
+### 4. RSA-OAEP Asymmetric Encryption
+The RSA-OAEP page implements public-key encryption and digital signatures from scratch, without any external cryptographic library. All operations use RSA-2048 with OAEP padding (SHA3-256 / MGF1).
+
+#### 4.1 Generating a Key Pair
+1. **Navigation**: Select the **RSA-OAEP** icon from the sidebar.
+2. Click the **Generate Key Pair** button in the home screen.
+3. The application will display a status message while generating primes in a background thread (this may take 2–15 seconds).
+4. Once complete, the **Public Key** and **Private Key** appear in JSON/Base64 format.
+5. Use **Copy Public Key** to share your public key with others. Use **Copy Private Key** to save your private key in a secure location.
+6. **Security warning**: Never share your private key. Anyone with access to it can decrypt all messages sent to you and impersonate you in signatures.
+
+#### 4.2 Encrypting a Message
+1. From the RSA home screen, click **Encrypt**.
+2. Enter the message in the **Text to Encrypt** field. The maximum message size is approximately **190 bytes** for a 2048-bit key. The interface will show a warning if the limit is exceeded.
+3. Paste the recipient's **Public Key** (JSON format) in the right panel.
+4. Click **Encrypt**. The Base64-encoded ciphertext appears in the output panel.
+5. Send the Base64 ciphertext to the recipient. It can only be decrypted with the corresponding private key.
+
+#### 4.3 Decrypting a Message
+1. From the RSA home screen, click **Decrypt**.
+2. Paste the **Base64 ciphertext** received in the left field.
+3. Paste your **Private Key** (JSON format) in the right field.
+4. Click **Decrypt**. The original plaintext message is displayed.
+
+#### 4.4 Signing a Message
+1. From the RSA home screen, click **Sign / Verify**.
+2. Ensure **Sign** mode is active (blue button).
+3. Type the message in the **Message to Sign** field.
+4. Paste your **Private Key** (JSON) in the right field.
+5. Click **Sign Message**. A signed document (including PEM-like delimiters) is generated.
+6. Share the complete signed document and your public key with the verifier.
+
+#### 4.5 Verifying a Signature
+1. From the **Sign / Verify** screen, click **Verify** to switch modes.
+2. Paste the complete **signed document** (including `-----BEGIN RSA SIGNED MESSAGE-----` and end delimiters).
+3. Paste the sender's **Public Key** (JSON) in the right field.
+4. Click **Verify Signature**.
+5. The result shows **"Signature VALID"** in green, or **"Signature INVALID"** in red. A valid result confirms both message authenticity (not tampered) and identity (signed with the matching private key).
+
+### 5. Decrypting & Cryptanalysis (Vigenère)
 1. **Navigation**: Select the **Decrypt** icon from the sidebar.
 2. **Direct Decryption**: If the key is known, enter it in the key field and click Decrypt.
 3. **Automated Attack**:
@@ -80,7 +119,46 @@ Este guia explica como utilizar efetivamente as principais funcionalidades da ap
    - **13 rodadas**: Ruído total, equivalente à cifração real do AES.
 5. **Salvar**: Clique em **Salvar** em qualquer card para exportar o resultado visual como arquivo **PNG**.
 
-### 4. Descriptografar e Criptoanálise (Vigenère)
+### 4. Criptografia Assimétrica RSA-OAEP
+A página RSA-OAEP implementa criptografia de chave pública e assinaturas digitais do zero, sem nenhuma biblioteca criptográfica externa. Todas as operações usam RSA-2048 com padding OAEP (SHA3-256 / MGF1).
+
+#### 4.1 Gerar um Par de Chaves
+1. **Navegação**: Selecione o ícone **RSA-OAEP** no menu lateral.
+2. Clique no botão **Gerar Par de Chaves** na tela inicial.
+3. O aplicativo exibirá uma mensagem de status enquanto gera primos em uma thread em segundo plano (pode levar de 2 a 15 segundos).
+4. Após a conclusão, a **Chave Pública** e a **Chave Privada** aparecem no formato JSON/Base64.
+5. Use **Copiar Chave Pública** para compartilhar com outros. Use **Copiar Chave Privada** para guardar em local seguro.
+6. **Aviso de segurança**: Nunca compartilhe sua chave privada. Quem tiver acesso a ela poderá decifrar todas as mensagens enviadas a você e se passar por você em assinaturas.
+
+#### 4.2 Cifrar uma Mensagem
+1. Na tela inicial RSA, clique em **Cifrar**.
+2. Digite a mensagem no campo **Texto para Cifrar**. O tamanho máximo é de aproximadamente **190 bytes** para uma chave de 2048 bits. A interface exibirá um aviso se o limite for excedido.
+3. Cole a **Chave Pública** do destinatário (formato JSON) no painel direito.
+4. Clique em **Cifrar**. O texto cifrado em Base64 aparece no painel de saída.
+5. Envie o texto cifrado em Base64 ao destinatário. Somente ele, com a chave privada correspondente, pode decifrá-lo.
+
+#### 4.3 Decifrar uma Mensagem
+1. Na tela inicial RSA, clique em **Decifrar**.
+2. Cole o **texto cifrado em Base64** recebido no campo esquerdo.
+3. Cole sua **Chave Privada** (formato JSON) no campo direito.
+4. Clique em **Decifrar**. A mensagem original é exibida.
+
+#### 4.4 Assinar uma Mensagem
+1. Na tela inicial RSA, clique em **Assinar / Verificar**.
+2. Certifique-se de que o modo **Assinar** está ativo (botão azul).
+3. Digite a mensagem no campo **Mensagem para Assinar**.
+4. Cole sua **Chave Privada** (JSON) no campo direito.
+5. Clique em **Assinar Mensagem**. Um documento assinado (com delimitadores estilo PEM) é gerado.
+6. Compartilhe o documento assinado completo e sua chave pública com o verificador.
+
+#### 4.5 Verificar uma Assinatura
+1. Na tela **Assinar / Verificar**, clique em **Verificar** para mudar de modo.
+2. Cole o **documento assinado completo** (incluindo os delimitadores `-----BEGIN RSA SIGNED MESSAGE-----`).
+3. Cole a **Chave Pública** do remetente (JSON) no campo direito.
+4. Clique em **Verificar Assinatura**.
+5. O resultado exibirá **"Assinatura VALIDA"** em verde, ou **"Assinatura INVALIDA"** em vermelho. Um resultado válido confirma tanto a autenticidade da mensagem (não foi adulterada) quanto a identidade (assinada com a chave privada correspondente).
+
+### 5. Descriptografar e Criptoanálise (Vigenère)
 1. **Navegação**: Selecione o ícone **Descriptografar** na barra lateral.
 2. **Decifração Direta**: Se a chave for conhecida, insira-a no campo de chave e clique em Descriptografar.
 3. **Ataque Automatizado**:
