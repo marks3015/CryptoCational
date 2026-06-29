@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from core.translator import translator
 
 class SettingsPage(QWidget):
-    def __init__(self, parent=None, version="v1.1.0"):
+    def __init__(self, parent=None, version="v1.2.0"):
         super().__init__(parent)
         self.version = version
         self.instruction_sections = []
